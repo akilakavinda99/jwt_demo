@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const e = require("express");
 const app = express();
 
 app.use(express.json());
@@ -50,4 +51,28 @@ app.post("/login", (req, res) => {
   }
 });
 
+const verify = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+
+    jwt.verify(token, "TempSecretKey", (err, user) => {
+      if (err) {
+        return res.status(403).send("Token invalid");
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    res.status(401).send("You are not authenticated");
+  }
+};
+
+app.delete("/delete/:userId", verify, (req, res) => {
+  if (req.user.id == req.params.userId || req.user.isAdmin) {
+    res.status(200).send("user deleted");
+  } else {
+    res.status(500).send("user cant be deleted");
+  }
+});
 app.listen(PORT, () => console.log("Server started"));
