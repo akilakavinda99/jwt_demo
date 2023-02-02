@@ -32,6 +32,37 @@ const users = [
   },
 ];
 
+var refreshTokens = [];
+
+const refreshTokenCreate = (user) => {
+  return jwt.sign({ id: user.id, admin: user.isAdmin }, "TempRefreshSecretKey");
+};
+app.post("/refreshToken", (req, res) => {
+  const refreshToken = req.body.token;
+
+  if (!refreshToken) return res.status(401).send("Not authenticated");
+  if (!refreshTokens.includes(refreshToken)) {
+    return res.status(403).send("refresh token not valid");
+  }
+  jwt.verify(refreshToken, "TempRefreshSecretKey", (err, user) => {
+    err && console.log(err);
+    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+    const newAccessToken = jwt.sign(
+      { id: user.id, admin: user.isAdmin },
+      "TempSecretKey",
+      {
+        expiresIn: "60s",
+      }
+    );
+    const newRefreshTOken = refreshTokenCreate(user);
+    refreshTokens.push(newRefreshTOken);
+    res.status(200).send({
+      newAccessToken,
+      newRefreshTOken,
+    });
+  });
+});
+
 app.post("/login", (req, res) => {
   const { user, password } = req.body;
   const userExists = users.find((u) => {
@@ -40,11 +71,17 @@ app.post("/login", (req, res) => {
   if (userExists) {
     const accessToken = jwt.sign(
       { id: userExists.id, admin: userExists.isAdmin },
-      "TempSecretKey"
+      "TempSecretKey",
+      {
+        expiresIn: "20s",
+      }
     );
+    const refreshTOken = refreshTokenCreate(user);
+    refreshTokens.push(refreshTOken);
     res.json({
       uid: userExists.name,
       accessToken,
+      refreshTOken,
     });
   } else {
     res.status(400).json("username or password incorrect");
